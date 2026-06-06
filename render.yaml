@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: word-filler-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ADMIN_USER_ID
+        sync: false
+      - key: PORT
+        value: 8080
+      - key: NODE_ENV
+        value: production
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          name: word-filler-bot
+          type: web
+          property: host
