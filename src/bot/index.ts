@@ -287,13 +287,11 @@ export function createBot(): Telegraf {
           { source: coordBuffer, filename: fileName.replace(".pdf", "") + "_coordinates.json" },
           {
             caption:
-              "📐 إحداثيات عناصر الملف
-─────────────────
-" +
-              "📄 الصفحات: " + extracted.pageCount + "
-" +
+              "📐 إحداثيات عناصر الملف\n─────────────────\n" +
+              "📄 الصفحات: " + extracted.pageCount + "\n" +
               "📝 النصوص المكتشفة: " + totalTextBlocks,
           }
+        );
         );
 
         // Send fillable JSON template
@@ -302,12 +300,9 @@ export function createBot(): Telegraf {
           { source: fillBuffer, filename: fileName.replace(".pdf", "") + "_fill_template.json" },
           {
             caption:
-              "📋 قالب التعبئة
-─────────────────
-" +
-              "عبّئ القيم الفارغة في هذا الملف
-" +
-              "ثم أرسله لاحقاً لتطبيق التعبئة على الـ PDF",
+              "📋 قالب التعبئة\n─────────────────\n" +
+              "عبئ القيم الفارغة في هذا الملف\n" +
+              "ثم أرسله لاحقا لتطبيق التعبئة على الـ PDF",
           }
         );
       } catch (err: any) {
