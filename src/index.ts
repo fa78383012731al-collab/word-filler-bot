@@ -2,6 +2,7 @@ import "dotenv/config";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { createBot } from "./bot/index";
+import { runMigrations } from "./lib/migrate";
 import https from "https";
 import http from "http";
 
@@ -25,34 +26,43 @@ function startSelfPing() {
   logger.info({ pingUrl }, "Self-ping started");
 }
 
-app.listen(port, async () => {
-  logger.info({ port }, "Server listening");
-  startSelfPing();
+async function main() {
+  await runMigrations();
 
-  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    logger.warn("Bot credentials missing — bot not started");
-    return;
-  }
+  app.listen(port, async () => {
+    logger.info({ port }, "Server listening");
+    startSelfPing();
 
-  try {
-    const bot = createBot();
-
-    if (WEBHOOK_URL) {
-      app.post(WEBHOOK_PATH, bot.webhookCallback(WEBHOOK_PATH));
-      const info = await bot.telegram.getWebhookInfo();
-      if (info.url !== WEBHOOK_URL) {
-        await bot.telegram.setWebhook(WEBHOOK_URL, { drop_pending_updates: true });
-        logger.info({ WEBHOOK_URL }, "Webhook registered");
-      }
-      logger.info("Bot started with webhook");
-    } else {
-      await bot.launch({ dropPendingUpdates: true });
-      logger.info("Bot started with polling");
+    if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      logger.warn("Bot credentials missing — bot not started");
+      return;
     }
 
-    process.once("SIGINT", () => bot.stop("SIGINT"));
-    process.once("SIGTERM", () => bot.stop("SIGTERM"));
-  } catch (err) {
-    logger.error({ err }, "Failed to start bot");
-  }
+    try {
+      const bot = createBot();
+
+      if (WEBHOOK_URL) {
+        app.post(WEBHOOK_PATH, bot.webhookCallback(WEBHOOK_PATH));
+        const info = await bot.telegram.getWebhookInfo();
+        if (info.url !== WEBHOOK_URL) {
+          await bot.telegram.setWebhook(WEBHOOK_URL, { drop_pending_updates: true });
+          logger.info({ WEBHOOK_URL }, "Webhook registered");
+        }
+        logger.info("Bot started with webhook");
+      } else {
+        await bot.launch({ dropPendingUpdates: true });
+        logger.info("Bot started with polling");
+      }
+
+      process.once("SIGINT", () => bot.stop("SIGINT"));
+      process.once("SIGTERM", () => bot.stop("SIGTERM"));
+    } catch (err) {
+      logger.error({ err }, "Failed to start bot");
+    }
+  });
+}
+
+main().catch((err) => {
+  logger.error({ err }, "Fatal startup error");
+  process.exit(1);
 });
