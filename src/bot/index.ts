@@ -8,6 +8,7 @@ import {
   getSession, upsertSession, getAllTemplates, getTemplate,
   createTemplate, deleteTemplate, saveFilledDocument, getUserHistory,
 } from "./storage";
+import { extractPdfCoordinates, buildFillableJson } from "../lib/pdf-extractor";
 
 const ADMIN_ID = Number(process.env.ADMIN_USER_ID || "0");
 
@@ -262,10 +263,62 @@ export function createBot(): Telegraf {
     const userId = ctx.from?.id;
     if (!userId) return;
     const session = await getSession(userId);
+    const doc = ctx.message.document;
+    const fileName = doc.file_name || "";
+
+    // PDF coordinate extraction handler
+    if (fileName.toLowerCase().endsWith(".pdf")) {
+      await ctx.reply("⏳ جاري تحليل ملف PDF واستخراج الإحداثيات...");
+      try {
+        const fileLink = await ctx.telegram.getFileLink(doc.file_id);
+        const res = await axios.get(fileLink.href, { responseType: "arraybuffer" });
+        const buffer = Buffer.from(res.data);
+
+        const extracted = await extractPdfCoordinates(buffer);
+        const fillableJson = buildFillableJson(extracted);
+
+        const totalTextBlocks = extracted.pages.reduce(
+          (sum, p) => sum + p.elements.filter((e) => e.type === "text_block").length, 0
+        );
+
+        // Send full coordinates JSON
+        const coordBuffer = Buffer.from(JSON.stringify(extracted, null, 2), "utf-8");
+        await ctx.replyWithDocument(
+          { source: coordBuffer, filename: fileName.replace(".pdf", "") + "_coordinates.json" },
+          {
+            caption:
+              "📐 إحداثيات عناصر الملف
+─────────────────
+" +
+              "📄 الصفحات: " + extracted.pageCount + "
+" +
+              "📝 النصوص المكتشفة: " + totalTextBlocks,
+          }
+        );
+
+        // Send fillable JSON template
+        const fillBuffer = Buffer.from(JSON.stringify(fillableJson, null, 2), "utf-8");
+        await ctx.replyWithDocument(
+          { source: fillBuffer, filename: fileName.replace(".pdf", "") + "_fill_template.json" },
+          {
+            caption:
+              "📋 قالب التعبئة
+─────────────────
+" +
+              "عبّئ القيم الفارغة في هذا الملف
+" +
+              "ثم أرسله لاحقاً لتطبيق التعبئة على الـ PDF",
+          }
+        );
+      } catch (err: any) {
+        logger.error({ err }, "PDF extraction error");
+        await ctx.reply("❌ حدث خطأ أثناء تحليل PDF. تأكد أن الملف غير محمي بكلمة سر.");
+      }
+      return;
+    }
 
     if (session?.state === "admin" && session.adminState === "waiting_template_file" && isAdmin(userId)) {
-      const doc = ctx.message.document;
-      if (!doc.file_name?.endsWith(".docx")) {
+      if (!fileName.endsWith(".docx")) {
         await ctx.reply("⚠️ يجب أن يكون الملف بصيغة .docx فقط.");
         return;
       }
