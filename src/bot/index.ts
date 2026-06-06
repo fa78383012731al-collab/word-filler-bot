@@ -24,11 +24,11 @@ function isAdmin(userId: number) {
 
 function mainMenuKeyboard(isAdminUser: boolean) {
   const rows = [
-    [Markup.button.callback("📋 القوالب المتاحة", "templates:list")],
-    [Markup.button.callback("📜 سجل ملفاتي", "history:list")],
+    [Markup.button.callback("\u{1F4CB} \u0627\u0644\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u0645\u062A\u0627\u062D\u0629", "templates:list")],
+    [Markup.button.callback("\u{1F4DC} \u0633\u062C\u0644 \u0645\u0644\u0641\u0627\u062A\u064A", "history:list")],
   ];
   if (isAdminUser) {
-    rows.push([Markup.button.callback("⚙️ لوحة الإدارة", "admin:panel")]);
+    rows.push([Markup.button.callback("\u2699\uFE0F \u0644\u0648\u062D\u0629 \u0627\u0644\u0625\u062F\u0627\u0631\u0629", "admin:panel")]);
   }
   return Markup.inlineKeyboard(rows);
 }
@@ -41,19 +41,19 @@ export function createBot(): Telegraf {
 
   bot.start(async (ctx) => {
     const userId = ctx.from!.id;
-    const name = ctx.from?.first_name || "مستخدم";
+    const name = ctx.from?.first_name || "\u0645\u0633\u062A\u062E\u062F\u0645";
     await upsertSession(userId, { state: "idle", templateId: null, collectedData: {}, currentFieldIndex: 0 });
 
     const driveOk = await isGoogleAuthorized();
     const admin = isAdmin(userId);
 
     await ctx.reply(
-      `👋 أهلاً ${name}!\n` +
-      `─────────────────\n` +
-      `☁️ Google Drive: ${driveOk ? "✅ متصل" : "❌ غير متصل"}\n` +
-      `📄 بوت تعبئة مستندات Word\n` +
-      `─────────────────\n` +
-      `اختر من القائمة:`,
+      "\u{1F44B} \u0623\u0647\u0644\u0627\u064B " + name + "!\n" +
+      "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+      "\u2601\uFE0F Google Drive: " + (driveOk ? "\u2705 \u0645\u062A\u0635\u0644" : "\u274C \u063A\u064A\u0631 \u0645\u062A\u0635\u0644") + "\n" +
+      "\u{1F4C4} \u0628\u0648\u062A \u062A\u0639\u0628\u0626\u0629 \u0645\u0633\u062A\u0646\u062F\u0627\u062A Word\n" +
+      "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+      "\u0627\u062E\u062A\u0631 \u0645\u0646 \u0627\u0644\u0642\u0627\u0626\u0645\u0629:",
       mainMenuKeyboard(admin)
     );
   });
@@ -61,27 +61,33 @@ export function createBot(): Telegraf {
   bot.command("menu", async (ctx) => {
     const userId = ctx.from!.id;
     await upsertSession(userId, { state: "idle" });
-    await ctx.reply("🏠 القائمة الرئيسية:", mainMenuKeyboard(isAdmin(userId)));
+    await ctx.reply("\u{1F3E0} \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629:", mainMenuKeyboard(isAdmin(userId)));
   });
 
   bot.command("cancel", async (ctx) => {
     const userId = ctx.from!.id;
     await upsertSession(userId, { state: "idle", templateId: null, collectedData: {}, currentFieldIndex: 0 });
-    await ctx.reply("↩️ تم الإلغاء.", mainMenuKeyboard(isAdmin(userId)));
+    await ctx.reply("\u21A9\uFE0F \u062A\u0645 \u0627\u0644\u0625\u0644\u063A\u0627\u0621.", mainMenuKeyboard(isAdmin(userId)));
   });
 
   bot.action("templates:list", async (ctx) => {
     await ctx.answerCbQuery();
     const allTemplates = await getAllTemplates();
     if (allTemplates.length === 0) {
-      await ctx.reply("📭 لا توجد قوالب متاحة بعد.\nتواصل مع المدير لإضافة قوالب.", mainMenuKeyboard(isAdmin(ctx.from!.id)));
+      await ctx.reply(
+        "\u{1F4ED} \u0644\u0627 \u062A\u0648\u062C\u062F \u0642\u0648\u0627\u0644\u0628 \u0645\u062A\u0627\u062D\u0629 \u0628\u0639\u062F.\n\u062A\u0648\u0627\u0635\u0644 \u0645\u0639 \u0627\u0644\u0645\u062F\u064A\u0631 \u0644\u0625\u0636\u0627\u0641\u0629 \u0642\u0648\u0627\u0644\u0628.",
+        mainMenuKeyboard(isAdmin(ctx.from!.id))
+      );
       return;
     }
     const rows = allTemplates.map((t) =>
-      [Markup.button.callback(`📄 ${t.name}`, `template:select:${t.id}`)]
+      [Markup.button.callback("\u{1F4C4} " + t.name, "template:select:" + t.id)]
     );
-    rows.push([Markup.button.callback("🏠 الرئيسية", "menu:main")]);
-    await ctx.reply("📋 القوالب المتاحة:\nاختر القالب الذي تريد تعبئته:", Markup.inlineKeyboard(rows));
+    rows.push([Markup.button.callback("\u{1F3E0} \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629", "menu:main")]);
+    await ctx.reply(
+      "\u{1F4CB} \u0627\u0644\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u0645\u062A\u0627\u062D\u0629:\n\u0627\u062E\u062A\u0631 \u0627\u0644\u0642\u0627\u0644\u0628 \u0627\u0644\u0630\u064A \u062A\u0631\u064A\u062F \u062A\u0639\u0628\u0626\u062A\u0647:",
+      Markup.inlineKeyboard(rows)
+    );
   });
 
   bot.action(/^template:select:(\d+)$/, async (ctx) => {
@@ -90,21 +96,21 @@ export function createBot(): Telegraf {
     const templateId = parseInt(ctx.match[1]);
     const template = await getTemplate(templateId);
     if (!template) {
-      await ctx.reply("⚠️ القالب غير موجود.");
+      await ctx.reply("\u26A0\uFE0F \u0627\u0644\u0642\u0627\u0644\u0628 \u063A\u064A\u0631 \u0645\u0648\u062C\u0648\u062F.");
       return;
     }
 
     const authorized = await isGoogleAuthorized();
     if (!authorized) {
       await ctx.reply(
-        `⚠️ Google Drive غير متصل.\n\n🔗 افتح الرابط لربط الحساب:\n${getAuthLink()}`
+        "\u26A0\uFE0F Google Drive \u063A\u064A\u0631 \u0645\u062A\u0635\u0644.\n\n\u{1F517} \u0627\u0641\u062A\u062D \u0627\u0644\u0631\u0627\u0628\u0637 \u0644\u0631\u0628\u0637 \u0627\u0644\u062D\u0633\u0627\u0628:\n" + getAuthLink()
       );
       return;
     }
 
     const fields = template.fields as Array<{ key: string; label: string; required: boolean }>;
     if (fields.length === 0) {
-      await ctx.reply("⚠️ هذا القالب ليس له حقول.");
+      await ctx.reply("\u26A0\uFE0F \u0647\u0630\u0627 \u0627\u0644\u0642\u0627\u0644\u0628 \u0644\u064A\u0633 \u0644\u0647 \u062D\u0642\u0648\u0644.");
       return;
     }
 
@@ -116,12 +122,12 @@ export function createBot(): Telegraf {
     });
 
     await ctx.reply(
-      `📄 ${template.name}\n` +
-      `─────────────────\n` +
-      `${template.description ? template.description + "\n─────────────────\n" : ""}` +
-      `عدد الحقول: ${fields.length}\n\n` +
-      `✏️ الحقل 1/${fields.length}: ${fields[0].label}\n` +
-      `أرسل القيمة الآن:`
+      "\u{1F4C4} " + template.name + "\n" +
+      "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+      (template.description ? template.description + "\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" : "") +
+      "\u0639\u062F\u062F \u0627\u0644\u062D\u0642\u0648\u0644: " + fields.length + "\n\n" +
+      "\u270F\uFE0F \u0627\u0644\u062D\u0642\u0644 1/" + fields.length + ": " + fields[0].label + "\n" +
+      "\u0623\u0631\u0633\u0644 \u0627\u0644\u0642\u064A\u0645\u0629 \u0627\u0644\u0622\u0646:"
     );
   });
 
@@ -130,15 +136,18 @@ export function createBot(): Telegraf {
     const userId = ctx.from!.id;
     const history = await getUserHistory(userId);
     if (history.length === 0) {
-      await ctx.reply("📭 لم تقم بتعبئة أي مستند بعد.", mainMenuKeyboard(isAdmin(userId)));
+      await ctx.reply(
+        "\u{1F4ED} \u0644\u0645 \u062A\u0642\u0645 \u0628\u062A\u0639\u0628\u0626\u0629 \u0623\u064A \u0645\u0633\u062A\u0646\u062F \u0628\u0639\u062F.",
+        mainMenuKeyboard(isAdmin(userId))
+      );
       return;
     }
-    let text = "📜 آخر 10 مستندات معبأة:\n─────────────────\n";
+    let text = "\u{1F4DC} \u0622\u062E\u0631 10 \u0645\u0633\u062A\u0646\u062F\u0627\u062A \u0645\u0639\u0628\u0623\u0629:\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n";
     for (const doc of history) {
       const template = await getTemplate(doc.templateId);
       const date = new Date(doc.createdAt).toLocaleDateString("ar-SA");
-      text += `📄 ${template?.name || "قالب محذوف"} — ${date}\n`;
-      if (doc.driveLink) text += `🔗 ${doc.driveLink}\n`;
+      text += "\u{1F4C4} " + (template?.name || "\u0642\u0627\u0644\u0628 \u0645\u062D\u0630\u0648\u0641") + " \u2014 " + date + "\n";
+      if (doc.driveLink) text += "\u{1F517} " + doc.driveLink + "\n";
       text += "\n";
     }
     await ctx.reply(text, mainMenuKeyboard(isAdmin(userId)));
@@ -148,21 +157,21 @@ export function createBot(): Telegraf {
     await ctx.answerCbQuery();
     const userId = ctx.from!.id;
     await upsertSession(userId, { state: "idle" });
-    await ctx.reply("🏠 القائمة الرئيسية:", mainMenuKeyboard(isAdmin(userId)));
+    await ctx.reply("\u{1F3E0} \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629:", mainMenuKeyboard(isAdmin(userId)));
   });
 
   bot.action("admin:panel", async (ctx) => {
     await ctx.answerCbQuery();
     const userId = ctx.from!.id;
-    if (!isAdmin(userId)) { await ctx.reply("⛔ غير مصرح."); return; }
+    if (!isAdmin(userId)) { await ctx.reply("\u26D4 \u063A\u064A\u0631 \u0645\u0635\u0631\u062D."); return; }
 
     const allTemplates = await getAllTemplates();
     await ctx.reply(
-      `⚙️ لوحة الإدارة\n─────────────────\n📋 القوالب: ${allTemplates.length}`,
+      "\u2699\uFE0F \u0644\u0648\u062D\u0629 \u0627\u0644\u0625\u062F\u0627\u0631\u0629\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u{1F4CB} \u0627\u0644\u0642\u0648\u0627\u0644\u0628: " + allTemplates.length,
       Markup.inlineKeyboard([
-        [Markup.button.callback("➕ إضافة قالب", "admin:add_template")],
-        [Markup.button.callback("🗑 حذف قالب", "admin:delete_template")],
-        [Markup.button.callback("🏠 الرئيسية", "menu:main")],
+        [Markup.button.callback("\u2795 \u0625\u0636\u0627\u0641\u0629 \u0642\u0627\u0644\u0628", "admin:add_template")],
+        [Markup.button.callback("\u{1F5D1} \u062D\u0630\u0641 \u0642\u0627\u0644\u0628", "admin:delete_template")],
+        [Markup.button.callback("\u{1F3E0} \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629", "menu:main")],
       ])
     );
   });
@@ -180,8 +189,7 @@ export function createBot(): Telegraf {
     });
 
     await ctx.reply(
-      `➕ إضافة قالب جديد\n─────────────────\n` +
-      `1️⃣ أرسل اسم القالب:`
+      "\u2795 \u0625\u0636\u0627\u0641\u0629 \u0642\u0627\u0644\u0628 \u062C\u062F\u064A\u062F\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n1\uFE0F\u20E3 \u0623\u0631\u0633\u0644 \u0627\u0633\u0645 \u0627\u0644\u0642\u0627\u0644\u0628:"
     );
   });
 
@@ -192,15 +200,15 @@ export function createBot(): Telegraf {
 
     const allTemplates = await getAllTemplates();
     if (allTemplates.length === 0) {
-      await ctx.reply("📭 لا توجد قوالب لحذفها.");
+      await ctx.reply("\u{1F4ED} \u0644\u0627 \u062A\u0648\u062C\u062F \u0642\u0648\u0627\u0644\u0628 \u0644\u062D\u0630\u0641\u0647\u0627.");
       return;
     }
 
     const rows = allTemplates.map((t) =>
-      [Markup.button.callback(`🗑 ${t.name}`, `admin:delete:${t.id}`)]
+      [Markup.button.callback("\u{1F5D1} " + t.name, "admin:delete:" + t.id)]
     );
-    rows.push([Markup.button.callback("↩️ رجوع", "admin:panel")]);
-    await ctx.reply("اختر القالب الذي تريد حذفه:", Markup.inlineKeyboard(rows));
+    rows.push([Markup.button.callback("\u21A9\uFE0F \u0631\u062C\u0648\u0639", "admin:panel")]);
+    await ctx.reply("\u0627\u062E\u062A\u0631 \u0627\u0644\u0642\u0627\u0644\u0628 \u0627\u0644\u0630\u064A \u062A\u0631\u064A\u062F \u062D\u0630\u0641\u0647:", Markup.inlineKeyboard(rows));
   });
 
   bot.action(/^admin:delete:(\d+)$/, async (ctx) => {
@@ -209,8 +217,8 @@ export function createBot(): Telegraf {
     if (!isAdmin(userId)) return;
     const templateId = parseInt(ctx.match[1]);
     await deleteTemplate(templateId);
-    await ctx.reply("✅ تم حذف القالب.", Markup.inlineKeyboard([
-      [Markup.button.callback("↩️ لوحة الإدارة", "admin:panel")],
+    await ctx.reply("\u2705 \u062A\u0645 \u062D\u0630\u0641 \u0627\u0644\u0642\u0627\u0644\u0628.", Markup.inlineKeyboard([
+      [Markup.button.callback("\u21A9\uFE0F \u0644\u0648\u062D\u0629 \u0627\u0644\u0625\u062F\u0627\u0631\u0629", "admin:panel")],
     ]));
   });
 
@@ -221,12 +229,12 @@ export function createBot(): Telegraf {
 
     const session = await getSession(userId);
     if (!session || !session.tempTemplateName) {
-      await ctx.reply("⚠️ لم يتم رفع ملف القالب بعد.");
+      await ctx.reply("\u26A0\uFE0F \u0644\u0645 \u064A\u062A\u0645 \u0631\u0641\u0639 \u0645\u0644\u0641 \u0627\u0644\u0642\u0627\u0644\u0628 \u0628\u0639\u062F.");
       return;
     }
 
     await upsertSession(userId, { adminState: "waiting_template_file" });
-    await ctx.reply("📎 الآن أرسل ملف Word (.docx) كمرفق:");
+    await ctx.reply("\u{1F4CE} \u0627\u0644\u0622\u0646 \u0623\u0631\u0633\u0644 \u0645\u0644\u0641 Word (.docx) \u0643\u0645\u0631\u0641\u0642:");
   });
 
   bot.action("admin:add_field", async (ctx) => {
@@ -234,7 +242,7 @@ export function createBot(): Telegraf {
     const userId = ctx.from!.id;
     if (!isAdmin(userId)) return;
     await upsertSession(userId, { adminState: "waiting_field_label" });
-    await ctx.reply("✏️ أرسل تسمية الحقل (مثال: اسم الطالب):");
+    await ctx.reply("\u270F\uFE0F \u0623\u0631\u0633\u0644 \u062A\u0633\u0645\u064A\u0629 \u0627\u0644\u062D\u0642\u0644 (\u0645\u062B\u0627\u0644: \u0627\u0633\u0645 \u0627\u0644\u0637\u0627\u0644\u0628):");
   });
 
   bot.action("admin:done_fields", async (ctx) => {
@@ -245,17 +253,17 @@ export function createBot(): Telegraf {
     const session = await getSession(userId);
     const fields = session?.tempTemplateFields || [];
     if (fields.length === 0) {
-      await ctx.reply("⚠️ يجب إضافة حقل واحد على الأقل.");
+      await ctx.reply("\u26A0\uFE0F \u064A\u062C\u0628 \u0625\u0636\u0627\u0641\u0629 \u062D\u0642\u0644 \u0648\u0627\u062D\u062F \u0639\u0644\u0649 \u0627\u0644\u0623\u0642\u0644.");
       return;
     }
 
     await upsertSession(userId, { adminState: "waiting_template_file" });
     await ctx.reply(
-      `✅ الحقول المضافة (${fields.length}):\n` +
-      fields.map((f, i) => `${i + 1}. ${f.label} → {${f.key}}`).join("\n") +
-      `\n\n📎 الآن أرسل ملف Word (.docx) كمرفق:\n` +
-      `⚠️ تأكد أن الملف يحتوي على المتغيرات بين أقواس مثل:\n` +
-      fields.map(f => `{${f.key}}`).join("  ")
+      "\u2705 \u0627\u0644\u062D\u0642\u0648\u0644 \u0627\u0644\u0645\u0636\u0627\u0641\u0629 (" + fields.length + "):\n" +
+      fields.map((f, i) => (i + 1) + ". " + f.label + " \u2192 {" + f.key + "}").join("\n") +
+      "\n\n\u{1F4CE} \u0627\u0644\u0622\u0646 \u0623\u0631\u0633\u0644 \u0645\u0644\u0641 Word (.docx) \u0643\u0645\u0631\u0641\u0642:\n" +
+      "\u26A0\uFE0F \u062A\u0623\u0643\u062F \u0623\u0646 \u0627\u0644\u0645\u0644\u0641 \u064A\u062D\u062A\u0648\u064A \u0639\u0644\u0649 \u0627\u0644\u0645\u062A\u063A\u064A\u0631\u0627\u062A:\n" +
+      fields.map(f => "{" + f.key + "}").join("  ")
     );
   });
 
@@ -266,9 +274,9 @@ export function createBot(): Telegraf {
     const doc = ctx.message.document;
     const fileName = doc.file_name || "";
 
-    // PDF coordinate extraction handler
+    // PDF coordinate extraction — available to all users
     if (fileName.toLowerCase().endsWith(".pdf")) {
-      await ctx.reply("⏳ جاري تحليل ملف PDF واستخراج الإحداثيات...");
+      await ctx.reply("\u23F3 \u062C\u0627\u0631\u064A \u062A\u062D\u0644\u064A\u0644 \u0645\u0644\u0641 PDF \u0648\u0627\u0633\u062A\u062E\u0631\u0627\u062C \u0627\u0644\u0625\u062D\u062F\u0627\u062B\u064A\u0627\u062A...");
       try {
         const fileLink = await ctx.telegram.getFileLink(doc.file_id);
         const res = await axios.get(fileLink.href, { responseType: "arraybuffer" });
@@ -281,17 +289,16 @@ export function createBot(): Telegraf {
           (sum, p) => sum + p.elements.filter((e) => e.type === "text_block").length, 0
         );
 
-        // Send full coordinates JSON
+        // Send coordinates JSON
         const coordBuffer = Buffer.from(JSON.stringify(extracted, null, 2), "utf-8");
         await ctx.replyWithDocument(
           { source: coordBuffer, filename: fileName.replace(".pdf", "") + "_coordinates.json" },
           {
             caption:
-              "📐 إحداثيات عناصر الملف\n─────────────────\n" +
-              "📄 الصفحات: " + extracted.pageCount + "\n" +
-              "📝 النصوص المكتشفة: " + totalTextBlocks,
+              "\u{1F4D0} \u0625\u062D\u062F\u0627\u062B\u064A\u0627\u062A \u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u0644\u0641\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+              "\u{1F4C4} \u0627\u0644\u0635\u0641\u062D\u0627\u062A: " + extracted.pageCount + "\n" +
+              "\u{1F4DD} \u0627\u0644\u0646\u0635\u0648\u0635 \u0627\u0644\u0645\u0643\u062A\u0634\u0641\u0629: " + totalTextBlocks,
           }
-        );
         );
 
         // Send fillable JSON template
@@ -300,25 +307,25 @@ export function createBot(): Telegraf {
           { source: fillBuffer, filename: fileName.replace(".pdf", "") + "_fill_template.json" },
           {
             caption:
-              "📋 قالب التعبئة\n─────────────────\n" +
-              "عبئ القيم الفارغة في هذا الملف\n" +
-              "ثم أرسله لاحقا لتطبيق التعبئة على الـ PDF",
+              "\u{1F4CB} \u0642\u0627\u0644\u0628 \u0627\u0644\u062A\u0639\u0628\u0626\u0629\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+              "\u0639\u0628\u0626 \u0627\u0644\u0642\u064A\u0645 \u0627\u0644\u0641\u0627\u0631\u063A\u0629 \u0641\u064A \u0647\u0630\u0627 \u0627\u0644\u0645\u0644\u0641\n" +
+              "\u062B\u0645 \u0623\u0631\u0633\u0644\u0647 \u0644\u0627\u062D\u0642\u0627\u064B \u0644\u062A\u0637\u0628\u064A\u0642 \u0627\u0644\u062A\u0639\u0628\u0626\u0629 \u0639\u0644\u0649 \u0627\u0644\u0640 PDF",
           }
         );
       } catch (err: any) {
         logger.error({ err }, "PDF extraction error");
-        await ctx.reply("❌ حدث خطأ أثناء تحليل PDF. تأكد أن الملف غير محمي بكلمة سر.");
+        await ctx.reply("\u274C \u062D\u062F\u062B \u062E\u0637\u0623 \u0623\u062B\u0646\u0627\u0621 \u062A\u062D\u0644\u064A\u0644 PDF. \u062A\u0623\u0643\u062F \u0623\u0646 \u0627\u0644\u0645\u0644\u0641 \u063A\u064A\u0631 \u0645\u062D\u0645\u064A \u0628\u0643\u0644\u0645\u0629 \u0633\u0631.");
       }
       return;
     }
 
     if (session?.state === "admin" && session.adminState === "waiting_template_file" && isAdmin(userId)) {
       if (!fileName.endsWith(".docx")) {
-        await ctx.reply("⚠️ يجب أن يكون الملف بصيغة .docx فقط.");
+        await ctx.reply("\u26A0\uFE0F \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0627\u0644\u0645\u0644\u0641 \u0628\u0635\u064A\u063A\u0629 .docx \u0641\u0642\u0637.");
         return;
       }
 
-      await ctx.reply("⏳ جاري معالجة القالب...");
+      await ctx.reply("\u23F3 \u062C\u0627\u0631\u064A \u0645\u0639\u0627\u0644\u062C\u0629 \u0627\u0644\u0642\u0627\u0644\u0628...");
 
       try {
         const fileLink = await ctx.telegram.getFileLink(doc.file_id);
@@ -328,14 +335,14 @@ export function createBot(): Telegraf {
         const fields = session.tempTemplateFields || [];
 
         const uploaded = await uploadFile(
-          `قالب_${session.tempTemplateName}.docx`,
+          "\u0642\u0627\u0644\u0628_" + session.tempTemplateName + ".docx",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           buffer
         );
 
         await createTemplate({
-          name: session.tempTemplateName || "قالب جديد",
-          description: `حقول: ${fields.map(f => f.label).join("، ")}`,
+          name: session.tempTemplateName || "\u0642\u0627\u0644\u0628 \u062C\u062F\u064A\u062F",
+          description: "\u062D\u0642\u0648\u0644: " + fields.map(f => f.label).join(", "),
           driveFileId: uploaded.id,
           fields,
           createdBy: userId,
@@ -343,20 +350,20 @@ export function createBot(): Telegraf {
 
         await upsertSession(userId, { state: "idle", adminState: "" });
         await ctx.reply(
-          `✅ تم حفظ القالب بنجاح!\n` +
-          `📄 الاسم: ${session.tempTemplateName}\n` +
-          `📋 الحقول: ${fields.length}\n` +
-          `☁️ رُفع إلى Drive`,
+          "\u2705 \u062A\u0645 \u062D\u0641\u0638 \u0627\u0644\u0642\u0627\u0644\u0628 \u0628\u0646\u062C\u0627\u062D!\n" +
+          "\u{1F4C4} \u0627\u0644\u0627\u0633\u0645: " + session.tempTemplateName + "\n" +
+          "\u{1F4CB} \u0627\u0644\u062D\u0642\u0648\u0644: " + fields.length + "\n" +
+          "\u2601\uFE0F \u0631\u064F\u0641\u0639 \u0625\u0644\u0649 Drive",
           mainMenuKeyboard(true)
         );
       } catch (err) {
         logger.error(err, "Error saving template");
-        await ctx.reply("❌ حدث خطأ أثناء حفظ القالب. يرجى المحاولة مجدداً.");
+        await ctx.reply("\u274C \u062D\u062F\u062B \u062E\u0637\u0623 \u0623\u062B\u0646\u0627\u0621 \u062D\u0641\u0638 \u0627\u0644\u0642\u0627\u0644\u0628. \u064A\u0631\u062C\u0649 \u0627\u0644\u0645\u062D\u0627\u0648\u0644\u0629 \u0645\u062C\u062F\u062F\u0627\u064B.");
       }
       return;
     }
 
-    await ctx.reply("💡 اختر قالباً من القائمة أولاً.", mainMenuKeyboard(isAdmin(userId)));
+    await ctx.reply("\u{1F4A1} \u0627\u062E\u062A\u0631 \u0642\u0627\u0644\u0628\u0627\u064B \u0645\u0646 \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0623\u0648\u0644\u0627\u064B.", mainMenuKeyboard(isAdmin(userId)));
   });
 
   bot.on("text", async (ctx) => {
@@ -378,7 +385,7 @@ export function createBot(): Telegraf {
       return;
     }
 
-    await ctx.reply("💡 اختر من القائمة:", mainMenuKeyboard(isAdmin(userId)));
+    await ctx.reply("\u{1F4A1} \u0627\u062E\u062A\u0631 \u0645\u0646 \u0627\u0644\u0642\u0627\u0626\u0645\u0629:", mainMenuKeyboard(isAdmin(userId)));
   });
 
   async function handleAdminText(ctx: Context, userId: number, text: string, session: any) {
@@ -390,7 +397,7 @@ export function createBot(): Telegraf {
         adminState: "waiting_template_description",
       });
       await ctx.reply(
-        `✅ اسم القالب: ${text}\n\n2️⃣ أرسل وصفاً مختصراً للقالب (أو أرسل - للتخطي):`
+        "\u2705 \u0627\u0633\u0645 \u0627\u0644\u0642\u0627\u0644\u0628: " + text + "\n\n2\uFE0F\u20E3 \u0623\u0631\u0633\u0644 \u0648\u0635\u0641\u0627\u064B \u0645\u062E\u062A\u0635\u0631\u0627\u064B \u0644\u0644\u0642\u0627\u0644\u0628 (\u0623\u0648 \u0623\u0631\u0633\u0644 - \u0644\u0644\u062A\u062E\u0637\u064A):"
       );
       return;
     }
@@ -398,11 +405,10 @@ export function createBot(): Telegraf {
     if (adminState === "waiting_template_description") {
       await upsertSession(userId, { adminState: "adding_fields" });
       await ctx.reply(
-        `3️⃣ أضف الحقول التي يحتاجها القالب:\n` +
-        `(مثال: {اسم_الطالب} → أرسل "اسم الطالب")\n\n`,
+        "3\uFE0F\u20E3 \u0623\u0636\u0641 \u0627\u0644\u062D\u0642\u0648\u0644 \u0627\u0644\u062A\u064A \u064A\u062D\u062A\u0627\u062C\u0647\u0627 \u0627\u0644\u0642\u0627\u0644\u0628:",
         Markup.inlineKeyboard([
-          [Markup.button.callback("➕ إضافة حقل", "admin:add_field")],
-          [Markup.button.callback("✅ انتهيت من الحقول", "admin:done_fields")],
+          [Markup.button.callback("\u2795 \u0625\u0636\u0627\u0641\u0629 \u062D\u0642\u0644", "admin:add_field")],
+          [Markup.button.callback("\u2705 \u0627\u0646\u062A\u0647\u064A\u062A \u0645\u0646 \u0627\u0644\u062D\u0642\u0648\u0644", "admin:done_fields")],
         ])
       );
       return;
@@ -423,10 +429,10 @@ export function createBot(): Telegraf {
       });
 
       await ctx.reply(
-        `✅ تمت إضافة الحقل:\n${label} → {${key}}\n\nإجمالي الحقول: ${newFields.length}`,
+        "\u2705 \u062A\u0645\u062A \u0625\u0636\u0627\u0641\u0629 \u0627\u0644\u062D\u0642\u0644:\n" + label + " \u2192 {" + key + "}\n\n\u0625\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u062D\u0642\u0648\u0644: " + newFields.length,
         Markup.inlineKeyboard([
-          [Markup.button.callback("➕ إضافة حقل آخر", "admin:add_field")],
-          [Markup.button.callback("✅ انتهيت", "admin:done_fields")],
+          [Markup.button.callback("\u2795 \u0625\u0636\u0627\u0641\u0629 \u062D\u0642\u0644 \u0622\u062E\u0631", "admin:add_field")],
+          [Markup.button.callback("\u2705 \u0627\u0646\u062A\u0647\u064A\u062A", "admin:done_fields")],
         ])
       );
       return;
@@ -436,7 +442,7 @@ export function createBot(): Telegraf {
   async function handleFillingText(ctx: Context, userId: number, text: string, session: any) {
     const template = await getTemplate(session.templateId!);
     if (!template) {
-      await ctx.reply("⚠️ القالب غير موجود.");
+      await ctx.reply("\u26A0\uFE0F \u0627\u0644\u0642\u0627\u0644\u0628 \u063A\u064A\u0631 \u0645\u0648\u062C\u0648\u062F.");
       await upsertSession(userId, { state: "idle" });
       return;
     }
@@ -456,21 +462,21 @@ export function createBot(): Telegraf {
         currentFieldIndex: nextIndex,
       });
       await ctx.reply(
-        `✅ تم حفظ: ${text}\n\n` +
-        `✏️ الحقل ${nextIndex + 1}/${fields.length}: ${fields[nextIndex].label}\n` +
-        `أرسل القيمة الآن:`
+        "\u2705 \u062A\u0645 \u062D\u0641\u0638: " + text + "\n\n" +
+        "\u270F\uFE0F \u0627\u0644\u062D\u0642\u0644 " + (nextIndex + 1) + "/" + fields.length + ": " + fields[nextIndex].label + "\n" +
+        "\u0623\u0631\u0633\u0644 \u0627\u0644\u0642\u064A\u0645\u0629 \u0627\u0644\u0622\u0646:"
       );
     } else {
       await upsertSession(userId, { state: "idle", collectedData: {}, currentFieldIndex: 0 });
-      await ctx.reply("⏳ جاري تعبئة المستند ورفعه إلى Drive...");
+      await ctx.reply("\u23F3 \u062C\u0627\u0631\u064A \u062A\u0639\u0628\u0626\u0629 \u0627\u0644\u0645\u0633\u062A\u0646\u062F \u0648\u0631\u0641\u0639\u0647 \u0625\u0644\u0649 Drive...");
 
       try {
         const templateBuffer = await downloadFile(template.driveFileId);
         const filledBuffer = fillTemplate(templateBuffer, collectedData);
 
-        const fileName = `${template.name}_${Date.now()}.docx`;
+        const outFileName = template.name + "_" + Date.now() + ".docx";
         const uploaded = await uploadFile(
-          fileName,
+          outFileName,
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           filledBuffer
         );
@@ -484,22 +490,22 @@ export function createBot(): Telegraf {
         });
 
         await ctx.replyWithDocument(
-          { source: filledBuffer, filename: fileName },
+          { source: filledBuffer, filename: outFileName },
           {
             caption:
-              `✅ تم تعبئة المستند بنجاح!\n` +
-              `📄 ${template.name}\n` +
-              `─────────────────\n` +
-              Object.entries(collectedData).map(([k, v]) => `• ${k}: ${v}`).join("\n") +
-              `\n─────────────────\n` +
-              `☁️ رابط Drive:\n${uploaded.link}`,
+              "\u2705 \u062A\u0645 \u062A\u0639\u0628\u0626\u0629 \u0627\u0644\u0645\u0633\u062A\u0646\u062F \u0628\u0646\u062C\u0627\u062D!\n" +
+              "\u{1F4C4} " + template.name + "\n" +
+              "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+              Object.entries(collectedData).map(([k, v]) => "\u2022 " + k + ": " + v).join("\n") +
+              "\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+              "\u2601\uFE0F \u0631\u0627\u0628\u0637 Drive:\n" + uploaded.link,
           }
         );
 
-        await ctx.reply("✅ تم! ماذا تريد الآن؟", mainMenuKeyboard(isAdmin(userId)));
+        await ctx.reply("\u2705 \u062A\u0645! \u0645\u0627\u0630\u0627 \u062A\u0631\u064A\u062F \u0627\u0644\u0622\u0646\u061F", mainMenuKeyboard(isAdmin(userId)));
       } catch (err) {
         logger.error(err, "Error filling/uploading document");
-        await ctx.reply("❌ حدث خطأ أثناء التعبئة. يرجى المحاولة مجدداً.", mainMenuKeyboard(isAdmin(userId)));
+        await ctx.reply("\u274C \u062D\u062F\u062B \u062E\u0637\u0623 \u0623\u062B\u0646\u0627\u0621 \u0627\u0644\u062A\u0639\u0628\u0626\u0629. \u064A\u0631\u062C\u0649 \u0627\u0644\u0645\u062D\u0627\u0648\u0644\u0629 \u0645\u062C\u062F\u062F\u0627\u064B.", mainMenuKeyboard(isAdmin(userId)));
       }
     }
   }
@@ -507,7 +513,7 @@ export function createBot(): Telegraf {
   bot.catch((err: any, ctx) => {
     logger.error({ err }, "Bot error");
     if (ctx.chat) {
-      ctx.reply("⚠️ حدث خطأ. أرسل /cancel وحاول مجدداً.").catch(() => {});
+      ctx.reply("\u26A0\uFE0F \u062D\u062F\u062B \u062E\u0637\u0623. \u0623\u0631\u0633\u0644 /cancel \u0648\u062D\u0627\u0648\u0644 \u0645\u062C\u062F\u062F\u0627\u064B.").catch(() => {});
     }
   });
 
