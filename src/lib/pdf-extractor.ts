@@ -1,8 +1,8 @@
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.js";
+import PDFParser from "pdf2json";
 import { logger } from "./logger";
 
-// Disable worker in Node.js environment
-(GlobalWorkerOptions as any).workerSrc = false;
+// pdf2json unit: 1 unit = 4.5 points
+const UNIT = 4.5;
 
 export interface BBox {
   x: number;
@@ -48,114 +48,96 @@ export interface DocumentData {
 }
 
 export async function extractPdfCoordinates(buffer: Buffer): Promise<DocumentData> {
-  const data = new Uint8Array(buffer);
-  const loadingTask = getDocument({ data, disableFontFace: true, useSystemFonts: true });
-  const pdf = await loadingTask.promise;
+  return new Promise((resolve, reject) => {
+    const parser = new (PDFParser as any)(null, 1);
 
-  const pageCount = pdf.numPages;
-  const pages: PageData[] = [];
+    parser.on("pdfParser_dataReady", (raw: any) => {
+      try {
+        const pages: PageData[] = (raw.Pages || []).map((page: any, idx: number) => {
+          const width = Math.round((page.Width || 0) * UNIT * 100) / 100;
+          const height = Math.round((page.Height || 0) * UNIT * 100) / 100;
+          const elements: PageElement[] = [];
 
-  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 1.0 });
-    const width = viewport.width;
-    const height = viewport.height;
-    const orientation = width > height ? "landscape" : "portrait";
+          for (const text of (page.Texts || [])) {
+            let content = "";
+            try {
+              content = decodeURIComponent(
+                (text.R || []).map((r: any) => r.T || "").join("")
+              ).trim();
+            } catch {
+              content = (text.R || []).map((r: any) => r.T || "").join("").trim();
+            }
 
-    const textContent = await page.getTextContent();
-    const elements: PageElement[] = [];
+            if (!content) continue;
 
-    // Group text items into blocks by proximity
-    const textItems = textContent.items as any[];
+            const r0 = text.R?.[0] || {};
+            const ts = r0.TS || [null, 12, 0, 0];
+            const fontSize = ts[1] || 12;
+            const bold = ts[2] === 1;
+            const italic = ts[3] === 1;
 
-    // Merge nearby text items into blocks
-    const blocks: { x: number; y: number; w: number; h: number; text: string; fontSize: number }[] = [];
+            const x = Math.round((text.x || 0) * UNIT * 100) / 100;
+            const y = Math.round((text.y || 0) * UNIT * 100) / 100;
+            const w = Math.round((text.w || 0) * UNIT * 100) / 100;
+            const h = Math.round(fontSize * 1.2 * 100) / 100;
 
-    for (const item of textItems) {
-      if (!item.str || item.str.trim() === "") continue;
+            elements.push({
+              type: "text_block",
+              bbox: { x, y, width: w, height: h },
+              content,
+              formatting: {
+                alignment: "right",
+                fontSize_pt: fontSize,
+                bold,
+                italic,
+                underline: false,
+              },
+            });
+          }
 
-      const transform = item.transform;
-      // transform = [scaleX, skewX, skewY, scaleY, translateX, translateY]
-      const x = transform[4];
-      // PDF Y-axis is bottom-up, convert to top-down
-      const y = height - transform[5] - Math.abs(transform[3]);
-      const itemWidth = item.width || 0;
-      const fontSize = Math.abs(transform[3]) || Math.abs(transform[0]);
+          elements.sort((a, b) => a.bbox.y - b.bbox.y);
 
-      // Check if this item belongs to an existing block (same line, close proximity)
-      let merged = false;
-      for (const block of blocks) {
-        const sameRow = Math.abs(block.y - y) < fontSize * 1.5;
-        const horizontallyClose = Math.abs((block.x + block.w) - x) < fontSize * 3;
-        if (sameRow && horizontallyClose) {
-          block.text = block.text + " " + item.str;
-          block.w = (x + itemWidth) - block.x;
-          merged = true;
-          break;
-        }
+          return {
+            pageNumber: idx + 1,
+            width,
+            height,
+            orientation: width > height ? "landscape" : "portrait",
+            layoutSummary: elements.length + " text block(s)",
+            elements,
+          };
+        });
+
+        logger.info({ pageCount: pages.length }, "PDF extraction complete");
+        resolve({ pageCount: pages.length, unit: "pt", pages });
+      } catch (err) {
+        reject(err);
       }
-
-      if (!merged) {
-        blocks.push({ x, y, w: itemWidth || fontSize * item.str.length * 0.6, h: fontSize, text: item.str, fontSize });
-      }
-    }
-
-    // Convert blocks to TextElements
-    for (const block of blocks) {
-      elements.push({
-        type: "text_block",
-        bbox: {
-          x: Math.round(block.x * 100) / 100,
-          y: Math.round(block.y * 100) / 100,
-          width: Math.round(block.w * 100) / 100,
-          height: Math.round(block.h * 100) / 100,
-        },
-        content: block.text.trim(),
-        formatting: {
-          alignment: "right",
-          fontSize_pt: Math.round(block.fontSize * 100) / 100,
-          bold: false,
-          italic: false,
-          underline: false,
-        },
-      });
-    }
-
-    // Sort by Y position (top to bottom)
-    elements.sort((a, b) => a.bbox.y - b.bbox.y);
-
-    const textCount = elements.length;
-    pages.push({
-      pageNumber: pageNum,
-      width: Math.round(width * 100) / 100,
-      height: Math.round(height * 100) / 100,
-      orientation,
-      layoutSummary: `${textCount} text block(s)`,
-      elements,
     });
 
-    page.cleanup();
-  }
+    parser.on("pdfParser_dataError", (err: any) => {
+      reject(new Error(err?.parserError || "PDF parse error"));
+    });
 
-  logger.info({ pageCount, pages: pages.length }, "PDF extraction complete");
-  return { pageCount, unit: "pt", pages };
+    parser.parseBuffer(buffer);
+  });
 }
 
 export function buildFillableJson(doc: DocumentData): Record<string, string> {
   const fillable: Record<string, string> = {};
   for (const page of doc.pages) {
     for (const el of page.elements) {
-      if (el.type === "text_block") {
-        const key = el.content
-          .replace(/\.{3,}/g, "")
-          .replace(/[:：]/g, "")
-          .trim()
-          .replace(/\s+/g, "_")
-          .replace(/[^\w\u0600-\u06FF_]/g, "")
-          .slice(0, 40);
-        if (key && key.length > 1) {
-          fillable[key] = "";
-        }
+      if (el.type !== "text_block") continue;
+      const raw = el.content
+        .replace(/\.{3,}/g, "")
+        .replace(/[::\u0640]/g, "")
+        .trim();
+      if (!raw || raw.length < 2) continue;
+      const key = raw
+        .replace(/\s+/g, "_")
+        .replace(/[^\w\u0600-\u06FF_]/g, "")
+        .slice(0, 40);
+      if (key && !(key in fillable)) {
+        fillable[key] = "";
       }
     }
   }
