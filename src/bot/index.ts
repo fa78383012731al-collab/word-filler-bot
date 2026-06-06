@@ -12,6 +12,9 @@ import { extractPdfCoordinates, buildFillableJson } from "../lib/pdf-extractor";
 
 const ADMIN_ID = Number(process.env.ADMIN_USER_ID || "0");
 
+// Dedup: track message IDs currently being processed to prevent Telegram re-delivery on long tasks
+const processingMessages = new Set<string>();
+
 function getAuthLink(): string {
   const base = process.env.RENDER_EXTERNAL_URL ||
     (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : null);
@@ -203,23 +206,29 @@ export function createBot(): Telegraf {
       await ctx.reply("\u{1F4ED} \u0644\u0627 \u062A\u0648\u062C\u062F \u0642\u0648\u0627\u0644\u0628 \u0644\u062D\u0630\u0641\u0647\u0627.");
       return;
     }
-
     const rows = allTemplates.map((t) =>
-      [Markup.button.callback("\u{1F5D1} " + t.name, "admin:delete:" + t.id)]
+      [Markup.button.callback("\u{1F5D1} " + t.name, "admin:confirm_delete:" + t.id)]
     );
-    rows.push([Markup.button.callback("\u21A9\uFE0F \u0631\u062C\u0648\u0639", "admin:panel")]);
-    await ctx.reply("\u0627\u062E\u062A\u0631 \u0627\u0644\u0642\u0627\u0644\u0628 \u0627\u0644\u0630\u064A \u062A\u0631\u064A\u062F \u062D\u0630\u0641\u0647:", Markup.inlineKeyboard(rows));
+    rows.push([Markup.button.callback("\u{1F3E0} \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629", "menu:main")]);
+    await ctx.reply(
+      "\u{1F5D1} \u0627\u062E\u062A\u0631 \u0627\u0644\u0642\u0627\u0644\u0628 \u0644\u062D\u0630\u0641\u0647:",
+      Markup.inlineKeyboard(rows)
+    );
   });
 
-  bot.action(/^admin:delete:(\d+)$/, async (ctx) => {
+  bot.action(/^admin:confirm_delete:(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const userId = ctx.from!.id;
     if (!isAdmin(userId)) return;
+
     const templateId = parseInt(ctx.match[1]);
+    const template = await getTemplate(templateId);
+    if (!template) {
+      await ctx.reply("\u26A0\uFE0F \u0627\u0644\u0642\u0627\u0644\u0628 \u063A\u064A\u0631 \u0645\u0648\u062C\u0648\u062F.");
+      return;
+    }
     await deleteTemplate(templateId);
-    await ctx.reply("\u2705 \u062A\u0645 \u062D\u0630\u0641 \u0627\u0644\u0642\u0627\u0644\u0628.", Markup.inlineKeyboard([
-      [Markup.button.callback("\u21A9\uFE0F \u0644\u0648\u062D\u0629 \u0627\u0644\u0625\u062F\u0627\u0631\u0629", "admin:panel")],
-    ]));
+    await ctx.reply("\u2705 \u062A\u0645 \u062D\u0630\u0641 \u0627\u0644\u0642\u0627\u0644\u0628: " + template.name, mainMenuKeyboard(true));
   });
 
   bot.action("admin:save_template", async (ctx) => {
@@ -260,23 +269,29 @@ export function createBot(): Telegraf {
     await upsertSession(userId, { adminState: "waiting_template_file" });
     await ctx.reply(
       "\u2705 \u0627\u0644\u062D\u0642\u0648\u0644 \u0627\u0644\u0645\u0636\u0627\u0641\u0629 (" + fields.length + "):\n" +
-      fields.map((f, i) => (i + 1) + ". " + f.label + " \u2192 {" + f.key + "}").join("\n") +
+      fields.map((f: any, i: number) => (i + 1) + ". " + f.label + " \u2192 {" + f.key + "}").join("\n") +
       "\n\n\u{1F4CE} \u0627\u0644\u0622\u0646 \u0623\u0631\u0633\u0644 \u0645\u0644\u0641 Word (.docx) \u0643\u0645\u0631\u0641\u0642:\n" +
       "\u26A0\uFE0F \u062A\u0623\u0643\u062F \u0623\u0646 \u0627\u0644\u0645\u0644\u0641 \u064A\u062D\u062A\u0648\u064A \u0639\u0644\u0649 \u0627\u0644\u0645\u062A\u063A\u064A\u0631\u0627\u062A:\n" +
-      fields.map(f => "{" + f.key + "}").join("  ")
+      fields.map((f: any) => "{" + f.key + "}").join("  ")
     );
   });
 
   bot.on("document", async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;
-    const session = await getSession(userId);
+
     const doc = ctx.message.document;
     const fileName = doc.file_name || "";
+    const msgKey = `${userId}:${ctx.message.message_id}`;
 
     // PDF coordinate extraction — available to all users
     if (fileName.toLowerCase().endsWith(".pdf")) {
+      // Dedup: skip if this exact message is already being processed
+      if (processingMessages.has(msgKey)) return;
+      processingMessages.add(msgKey);
+
       await ctx.reply("\u23F3 \u062C\u0627\u0631\u064A \u062A\u062D\u0644\u064A\u0644 \u0645\u0644\u0641 PDF \u0648\u0627\u0633\u062A\u062E\u0631\u0627\u062C \u0627\u0644\u0625\u062D\u062F\u0627\u062B\u064A\u0627\u062A...");
+
       try {
         const fileLink = await ctx.telegram.getFileLink(doc.file_id);
         const res = await axios.get(fileLink.href, { responseType: "arraybuffer" });
@@ -289,7 +304,6 @@ export function createBot(): Telegraf {
           (sum, p) => sum + p.elements.filter((e) => e.type === "text_block").length, 0
         );
 
-        // Send coordinates JSON
         const coordBuffer = Buffer.from(JSON.stringify(extracted, null, 2), "utf-8");
         await ctx.replyWithDocument(
           { source: coordBuffer, filename: fileName.replace(".pdf", "") + "_coordinates.json" },
@@ -301,7 +315,6 @@ export function createBot(): Telegraf {
           }
         );
 
-        // Send fillable JSON template
         const fillBuffer = Buffer.from(JSON.stringify(fillableJson, null, 2), "utf-8");
         await ctx.replyWithDocument(
           { source: fillBuffer, filename: fileName.replace(".pdf", "") + "_fill_template.json" },
@@ -315,9 +328,13 @@ export function createBot(): Telegraf {
       } catch (err: any) {
         logger.error({ err }, "PDF extraction error");
         await ctx.reply("\u274C \u062D\u062F\u062B \u062E\u0637\u0623 \u0623\u062B\u0646\u0627\u0621 \u062A\u062D\u0644\u064A\u0644 PDF. \u062A\u0623\u0643\u062F \u0623\u0646 \u0627\u0644\u0645\u0644\u0641 \u063A\u064A\u0631 \u0645\u062D\u0645\u064A \u0628\u0643\u0644\u0645\u0629 \u0633\u0631.");
+      } finally {
+        processingMessages.delete(msgKey);
       }
       return;
     }
+
+    const session = await getSession(userId);
 
     if (session?.state === "admin" && session.adminState === "waiting_template_file" && isAdmin(userId)) {
       if (!fileName.endsWith(".docx")) {
@@ -342,7 +359,7 @@ export function createBot(): Telegraf {
 
         await createTemplate({
           name: session.tempTemplateName || "\u0642\u0627\u0644\u0628 \u062C\u062F\u064A\u062F",
-          description: "\u062D\u0642\u0648\u0644: " + fields.map(f => f.label).join(", "),
+          description: "\u062D\u0642\u0648\u0644: " + fields.map((f: any) => f.label).join(", "),
           driveFileId: uploaded.id,
           fields,
           createdBy: userId,
