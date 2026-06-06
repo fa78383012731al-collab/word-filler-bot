@@ -1,4 +1,5 @@
-import PDFParser from "pdf2json";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PDFParser = require("pdf2json");
 import { logger } from "./logger";
 
 // pdf2json unit: 1 unit = 4.5 points
@@ -49,7 +50,7 @@ export interface DocumentData {
 
 export async function extractPdfCoordinates(buffer: Buffer): Promise<DocumentData> {
   return new Promise((resolve, reject) => {
-    const parser = new (PDFParser as any)(null, 1);
+    const parser = new PDFParser(null, 1);
 
     parser.on("pdfParser_dataReady", (raw: any) => {
       try {
@@ -70,11 +71,11 @@ export async function extractPdfCoordinates(buffer: Buffer): Promise<DocumentDat
 
             if (!content) continue;
 
-            const r0 = text.R?.[0] || {};
-            const ts = r0.TS || [null, 12, 0, 0];
-            const fontSize = ts[1] || 12;
-            const bold = ts[2] === 1;
-            const italic = ts[3] === 1;
+            const r0 = (text.R || [])[0] || {};
+            const ts: any[] = r0.TS || [null, 12, 0, 0];
+            const fontSize: number = ts[1] || 12;
+            const bold: boolean = ts[2] === 1;
+            const italic: boolean = ts[3] === 1;
 
             const x = Math.round((text.x || 0) * UNIT * 100) / 100;
             const y = Math.round((text.y || 0) * UNIT * 100) / 100;
@@ -101,7 +102,7 @@ export async function extractPdfCoordinates(buffer: Buffer): Promise<DocumentDat
             pageNumber: idx + 1,
             width,
             height,
-            orientation: width > height ? "landscape" : "portrait",
+            orientation: (width > height ? "landscape" : "portrait") as "landscape" | "portrait",
             layoutSummary: elements.length + " text block(s)",
             elements,
           };
@@ -115,7 +116,7 @@ export async function extractPdfCoordinates(buffer: Buffer): Promise<DocumentDat
     });
 
     parser.on("pdfParser_dataError", (err: any) => {
-      reject(new Error(err?.parserError || "PDF parse error"));
+      reject(new Error((err && err.parserError) || "PDF parse error"));
     });
 
     parser.parseBuffer(buffer);
@@ -129,7 +130,7 @@ export function buildFillableJson(doc: DocumentData): Record<string, string> {
       if (el.type !== "text_block") continue;
       const raw = el.content
         .replace(/\.{3,}/g, "")
-        .replace(/[::\u0640]/g, "")
+        .replace(/[:\u0640]/g, "")
         .trim();
       if (!raw || raw.length < 2) continue;
       const key = raw
