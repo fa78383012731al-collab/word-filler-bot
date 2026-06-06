@@ -21,7 +21,8 @@
     "zod": "^3.23.8",
     "axios": "^1.7.2",
     "multer": "^1.4.5-lts.1",
-    "express-session": "^1.18.0"
+    "express-session": "^1.18.0",
+    "pdfjs-dist": "^4.4.168"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
